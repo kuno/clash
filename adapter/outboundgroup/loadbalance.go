@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 
 	"github.com/Dreamacro/clash/adapter/outbound"
@@ -100,6 +101,21 @@ func (lb *LoadBalance) SupportUDP() bool {
 	return !lb.disableUDP
 }
 
+func strategyRandom() strategyFn {
+	lastPick := 0
+	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
+		length := len(proxies)
+		idx := rand.Intn(length)
+		proxy := proxies[idx]
+		if proxy.Alive() {
+			lastPick = idx
+			return proxy
+		}
+
+		return proxies[lastPick]
+	}
+}
+
 func strategyRoundRobin() strategyFn {
 	idx := 0
 	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
@@ -166,6 +182,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 		strategyFn = strategyConsistentHashing()
 	case "round-robin":
 		strategyFn = strategyRoundRobin()
+	case "random":
+		strategyFn = strategyRandom()
 	default:
 		return nil, fmt.Errorf("%w: %s", errStrategy, strategy)
 	}
