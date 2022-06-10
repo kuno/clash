@@ -15,10 +15,11 @@ import (
 	"github.com/Dreamacro/clash/common/convert"
 	N "github.com/Dreamacro/clash/common/net"
 	"github.com/Dreamacro/clash/common/utils"
+	tlsC "github.com/Dreamacro/clash/component/tls"
+
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/proxydialer"
 	"github.com/Dreamacro/clash/component/resolver"
-	tlsC "github.com/Dreamacro/clash/component/tls"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/log"
 	"github.com/Dreamacro/clash/transport/gun"
@@ -498,6 +499,13 @@ func (c *vlessPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	c.remain = total - length
 
 	return length, c.rAddr, nil
+}
+
+func (v *Vless) Weight() int {
+	if v.option.Weight == 0 {
+		return 1
+	}
+	return v.option.Weight
 }
 
 func NewVless(option VlessOption) (*Vless, error) {

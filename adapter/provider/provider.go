@@ -42,6 +42,7 @@ type proxySetProvider struct {
 	proxies          []C.Proxy
 	healthCheck      *HealthCheck
 	version          uint32
+	weight      uint32
 	subscriptionInfo *SubscriptionInfo
 }
 
@@ -163,7 +164,7 @@ func stopProxyProvider(pd *ProxySetProvider) {
 	_ = pd.Fetcher.Destroy()
 }
 
-func NewProxySetProvider(name string, interval time.Duration, filter string, excludeFilter string, excludeType string, dialerProxy string, vehicle types.Vehicle, hc *HealthCheck) (*ProxySetProvider, error) {
+func NewProxySetProvider(name string, interval time.Duration, filter string, excludeFilter string, excludeType string, dialerProxy string, vehicle types.Vehicle, hc *HealthCheck, providerWeight int) (*ProxySetProvider, error) {
 	excludeFilterReg, err := regexp2.Compile(excludeFilter, 0)
 	if err != nil {
 		return nil, fmt.Errorf("invalid excludeFilter regex: %w", err)
@@ -189,9 +190,10 @@ func NewProxySetProvider(name string, interval time.Duration, filter string, exc
 	pd := &proxySetProvider{
 		proxies:     []C.Proxy{},
 		healthCheck: hc,
+		weight:      1,
 	}
 
-	fetcher := resource.NewFetcher[[]C.Proxy](name, interval, vehicle, proxiesParseAndFilter(filter, excludeFilter, excludeTypeArray, filterRegs, excludeFilterReg, dialerProxy), proxiesOnUpdate(pd))
+	fetcher := resource.NewFetcher[[]C.Proxy](name, interval, vehicle, proxiesParseAndFilter(filter, excludeFilter, excludeTypeArray, filterRegs, excludeFilterReg, dialerProxy, providerWeight), proxiesOnUpdate(pd))
 	pd.Fetcher = fetcher
 	wrapper := &ProxySetProvider{pd}
 	runtime.SetFinalizer(wrapper, stopProxyProvider)
@@ -292,7 +294,7 @@ func proxiesOnUpdate(pd *proxySetProvider) func([]C.Proxy) {
 	}
 }
 
-func proxiesParseAndFilter(filter string, excludeFilter string, excludeTypeArray []string, filterRegs []*regexp2.Regexp, excludeFilterReg *regexp2.Regexp, dialerProxy string) resource.Parser[[]C.Proxy] {
+func proxiesParseAndFilter(filter string, excludeFilter string, excludeTypeArray []string, filterRegs []*regexp2.Regexp, excludeFilterReg *regexp2.Regexp, dialerProxy string, providerWeight int) resource.Parser[[]C.Proxy] {
 	return func(buf []byte) ([]C.Proxy, error) {
 		schema := &ProxySchema{}
 
@@ -358,7 +360,7 @@ func proxiesParseAndFilter(filter string, excludeFilter string, excludeTypeArray
 				if len(dialerProxy) > 0 {
 					mapping["dialer-proxy"] = dialerProxy
 				}
-				proxy, err := adapter.ParseProxy(mapping)
+				proxy, err := adapter.ParseProxy(mapping, providerWeight)
 				if err != nil {
 					return nil, fmt.Errorf("proxy %d error: %w", idx, err)
 				}

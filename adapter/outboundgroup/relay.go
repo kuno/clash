@@ -3,6 +3,7 @@ package outboundgroup
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/Dreamacro/clash/adapter/outbound"
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/proxydialer"
@@ -12,6 +13,10 @@ import (
 
 type Relay struct {
 	*GroupBase
+}
+
+func (r *Relay) Weight() int {
+	return 1
 }
 
 // DialContext implements C.ProxyAdapter
@@ -155,6 +160,7 @@ func NewRelay(option *GroupCommonOption, providers []provider.ProxyProvider) *Re
 			"",
 			"",
 			"",
+			option.WeightFilter,
 			providers,
 		}),
 	}

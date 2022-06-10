@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"errors"
+
 	"github.com/Dreamacro/clash/component/dialer"
 	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
@@ -38,6 +39,10 @@ func (d *Direct) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 		return nil, err
 	}
 	return newPacketConn(pc, d), nil
+}
+
+func (d *Direct) Weight() int {
+	return 1
 }
 
 func NewDirect() *Direct {

@@ -19,7 +19,10 @@ import (
 	v2rayObfs "github.com/Dreamacro/clash/transport/v2ray-plugin"
 
 	restlsC "github.com/3andne/restls-client-go"
-	"github.com/metacubex/sing-shadowsocks2"
+	shadowsocks "github.com/metacubex/sing-shadowsocks2"
+
+	//shadowsocks "github.com/sagernet/sing-shadowsocks"
+	//"github.com/sagernet/sing-shadowsocks/shadowimpl"
 	M "github.com/sagernet/sing/common/metadata"
 	"github.com/sagernet/sing/common/uot"
 )
@@ -81,6 +84,13 @@ type restlsOption struct {
 	Host         string `obfs:"host"`
 	VersionHint  string `obfs:"version-hint"`
 	RestlsScript string `obfs:"restls-script,omitempty"`
+}
+
+func (ss *ShadowSocks) Weight() int {
+	if ss.option.Weight == 0 {
+		return 1
+	}
+	return ss.option.Weight
 }
 
 // StreamConnContext implements C.ProxyAdapter

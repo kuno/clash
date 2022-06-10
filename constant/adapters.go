@@ -25,6 +25,7 @@ const (
 	Selector
 	Fallback
 	URLTest
+	WeightPrioritize
 	LoadBalance
 
 	Shadowsocks
@@ -98,6 +99,7 @@ type ProxyAdapter interface {
 	Name() string
 	Type() AdapterType
 	Addr() string
+	Weight() int
 	SupportUDP() bool
 	SupportXUDP() bool
 	SupportTFO() bool

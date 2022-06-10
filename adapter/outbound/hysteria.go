@@ -52,6 +52,10 @@ type Hysteria struct {
 	client *core.Client
 }
 
+func (h *Hysteria) Weight() int {
+	return 1;
+}
+
 func (h *Hysteria) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
 	tcpConn, err := h.client.DialTCP(metadata.RemoteAddress(), h.genHdc(ctx, opts...))
 	if err != nil {

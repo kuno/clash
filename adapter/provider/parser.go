@@ -35,6 +35,7 @@ type proxyProviderSchema struct {
 	ExcludeType   string            `provider:"exclude-type,omitempty"`
 	DialerProxy   string            `provider:"dialer-proxy,omitempty"`
 	HealthCheck   healthCheckSchema `provider:"health-check,omitempty"`
+	Weight        int               `provider:"weight,omitempty"`
 }
 
 func ParseProxyProvider(name string, mapping map[string]any) (types.ProxyProvider, error) {
@@ -86,5 +87,5 @@ func ParseProxyProvider(name string, mapping map[string]any) (types.ProxyProvide
 	excludeType := schema.ExcludeType
 	dialerProxy := schema.DialerProxy
 
-	return NewProxySetProvider(name, interval, filter, excludeFilter, excludeType, dialerProxy, vehicle, hc)
+	return NewProxySetProvider(name, interval, filter, excludeFilter, excludeType, dialerProxy, vehicle, hc, schema.Weight)
 }

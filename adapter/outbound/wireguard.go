@@ -129,6 +129,14 @@ func (option WireGuardPeerOption) Addr() M.Socksaddr {
 	return M.ParseSocksaddrHostPort(option.Server, uint16(option.Port))
 }
 
+func (w *WireGuard) Weight() int {
+	return 1
+}
+
+func (r *refProxyAdapter) Weight() int {
+	return 1
+}
+
 func (option WireGuardPeerOption) Prefixes() ([]netip.Prefix, error) {
 	localPrefixes := make([]netip.Prefix, 0, 2)
 	if len(option.Ip) > 0 {
