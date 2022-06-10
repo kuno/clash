@@ -3,6 +3,10 @@ package outboundgroup
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/Dreamacro/clash/adapter/outbound"
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/constant/provider"
@@ -11,13 +15,12 @@ import (
 	"github.com/Dreamacro/clash/tunnel"
 	"github.com/dlclark/regexp2"
 	"go.uber.org/atomic"
-	"sync"
-	"time"
 )
 
 type GroupBase struct {
 	*outbound.Base
 	filter        *regexp2.Regexp
+	weightFilter  string
 	providers     []provider.ProxyProvider
 	failedTestMux sync.Mutex
 	failedTimes   int
@@ -29,8 +32,9 @@ type GroupBase struct {
 
 type GroupBaseOption struct {
 	outbound.BaseOption
-	filter    string
-	providers []provider.ProxyProvider
+	filter       string
+	weightFilter string
+	providers    []provider.ProxyProvider
 }
 
 func NewGroupBase(opt GroupBaseOption) *GroupBase {
@@ -42,6 +46,7 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 	gb := &GroupBase{
 		Base:          outbound.NewBase(opt.BaseOption),
 		filter:        filter,
+		weightFilter:  opt.weightFilter,
 		providers:     opt.providers,
 		failedTesting: atomic.NewBool(false),
 	}
@@ -52,6 +57,49 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 	return gb
 }
 
+func filterProxyByWeight(proxies []C.Proxy, weightFilter string) []C.Proxy {
+	if weightFilter == "" {
+		return proxies
+	}
+	var newProxies []C.Proxy
+	re := regexp2.MustCompile(`(==|<=|!=|>=)([\d]+)`, 0)
+	if m, _ := re.FindStringMatch(weightFilter); m != nil {
+		gps := m.Groups()
+		opt := gps[1].Captures[0].String()
+		val, err := strconv.Atoi(gps[2].Captures[0].String())
+		if err != nil {
+			panic("invalid weight filter")
+		}
+
+		for _, p := range proxies {
+			switch opt {
+			case "==":
+				if p.Weight() == val {
+					newProxies = append(newProxies, p)
+				}
+			case "!=":
+				if p.Weight() != val {
+					newProxies = append(newProxies, p)
+				}
+			case ">=":
+				if p.Weight() >= val {
+					newProxies = append(newProxies, p)
+				}
+			case "<=":
+				if p.Weight() <= val {
+					newProxies = append(newProxies, p)
+				}
+			default:
+				panic("invalid weight filter")
+			}
+		}
+	} else {
+		newProxies = append(newProxies, proxies...)
+	}
+
+	return newProxies
+}
+
 func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 	if gb.filter == nil {
 		var proxies []C.Proxy
@@ -59,12 +107,15 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 			if touch {
 				pd.Touch()
 			}
-			proxies = append(proxies, pd.Proxies()...)
+
+			for _, p := range pd.Proxies() {
+				proxies = append(proxies, p)
+			}
 		}
 		if len(proxies) == 0 {
 			return append(proxies, tunnel.Proxies()["COMPATIBLE"])
 		}
-		return proxies
+		return filterProxyByWeight(proxies, gb.weightFilter)
 	}
 
 	for i, pd := range gb.providers {
@@ -86,8 +137,16 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 			)
 
 			proxies = pd.Proxies()
-			for _, p := range proxies {
-				if mat, _ := gb.filter.FindStringMatch(p.Name()); mat != nil {
+
+			//
+			if gb.filter != nil {
+				for _, p := range proxies {
+					if mat, _ := gb.filter.FindStringMatch(p.Name()); mat != nil {
+						newProxies = append(newProxies, p)
+					}
+				}
+			} else {
+				for _, p := range proxies {
 					newProxies = append(newProxies, p)
 				}
 			}
@@ -104,8 +163,7 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 	if len(proxies) == 0 {
 		return append(proxies, tunnel.Proxies()["COMPATIBLE"])
 	}
-
-	return proxies
+	return filterProxyByWeight(proxies, gb.weightFilter)
 }
 
 func (gb *GroupBase) URLTest(ctx context.Context, url string) (map[string]uint16, error) {

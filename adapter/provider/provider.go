@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
+	"time"
+
 	"github.com/Dreamacro/clash/common/convert"
 	"github.com/Dreamacro/clash/component/resource"
 	"github.com/dlclark/regexp2"
-	"runtime"
-	"time"
 
 	"github.com/Dreamacro/clash/adapter"
 	C "github.com/Dreamacro/clash/constant"
@@ -35,6 +36,7 @@ type proxySetProvider struct {
 	proxies     []C.Proxy
 	healthCheck *HealthCheck
 	version     uint32
+	weight      uint32
 }
 
 func (pp *proxySetProvider) MarshalJSON() ([]byte, error) {
@@ -101,7 +103,7 @@ func stopProxyProvider(pd *ProxySetProvider) {
 	_ = pd.Fetcher.Destroy()
 }
 
-func NewProxySetProvider(name string, interval time.Duration, filter string, vehicle types.Vehicle, hc *HealthCheck) (*ProxySetProvider, error) {
+func NewProxySetProvider(name string, interval time.Duration, filter string, vehicle types.Vehicle, hc *HealthCheck, providerWeight int) (*ProxySetProvider, error) {
 	filterReg, err := regexp2.Compile(filter, 0)
 	if err != nil {
 		return nil, fmt.Errorf("invalid filter regex: %w", err)
@@ -114,9 +116,10 @@ func NewProxySetProvider(name string, interval time.Duration, filter string, veh
 	pd := &proxySetProvider{
 		proxies:     []C.Proxy{},
 		healthCheck: hc,
+		weight:      1,
 	}
 
-	fetcher := resource.NewFetcher[[]C.Proxy](name, interval, vehicle, proxiesParseAndFilter(filter, filterReg), proxiesOnUpdate(pd))
+	fetcher := resource.NewFetcher[[]C.Proxy](name, interval, vehicle, proxiesParseAndFilter(filter, filterReg, providerWeight), proxiesOnUpdate(pd))
 	pd.Fetcher = fetcher
 
 	wrapper := &ProxySetProvider{pd}
@@ -212,7 +215,7 @@ func proxiesOnUpdate(pd *proxySetProvider) func([]C.Proxy) {
 	}
 }
 
-func proxiesParseAndFilter(filter string, filterReg *regexp2.Regexp) resource.Parser[[]C.Proxy] {
+func proxiesParseAndFilter(filter string, filterReg *regexp2.Regexp, providerWeight int) resource.Parser[[]C.Proxy] {
 	return func(buf []byte) ([]C.Proxy, error) {
 		schema := &ProxySchema{}
 
@@ -235,7 +238,7 @@ func proxiesParseAndFilter(filter string, filterReg *regexp2.Regexp) resource.Pa
 			if ok && len(filter) > 0 && mat == nil {
 				continue
 			}
-			proxy, err := adapter.ParseProxy(mapping)
+			proxy, err := adapter.ParseProxy(mapping, providerWeight)
 			if err != nil {
 				return nil, fmt.Errorf("proxy %d error: %w", idx, err)
 			}

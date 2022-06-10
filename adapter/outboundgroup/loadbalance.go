@@ -28,6 +28,40 @@ type LoadBalance struct {
 	strategyFn strategyFn
 }
 
+type DescendingWeight []C.Proxy
+
+func (dw DescendingWeight) Len() int      { return len(dw) }
+func (dw DescendingWeight) Swap(i, j int) { dw[i], dw[j] = dw[j], dw[i] }
+func (dw DescendingWeight) Less(i, j int) bool {
+	return dw[i].Weight() > dw[j].Weight()
+}
+
+type ProxyRandomStatistic struct {
+	data   map[string]int
+	header string
+}
+
+func (prs *ProxyRandomStatistic) Total() int {
+	total := 0
+	for _, count := range prs.data {
+		total += count
+	}
+
+	return total
+}
+
+func (prs *ProxyRandomStatistic) Selected(name string) int {
+	return prs.data[name]
+}
+
+func (prs *ProxyRandomStatistic) Record(name string) {
+	if count, found := prs.data[name]; found {
+		prs.data[name] = count + 1
+		return
+	}
+	prs.data[name] = 1
+}
+
 var errStrategy = errors.New("unsupported strategy")
 
 func parseStrategy(config map[string]any) string {
@@ -82,6 +116,10 @@ func jumpHash(key uint64, buckets int32) int32 {
 	return int32(b)
 }
 
+func (lb *LoadBalance) Weight() int {
+	return 1
+}
+
 // DialContext implements C.ProxyAdapter
 func (lb *LoadBalance) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (c C.Conn, err error) {
 	defer func() {
@@ -116,18 +154,42 @@ func (lb *LoadBalance) SupportUDP() bool {
 	return !lb.disableUDP
 }
 
-func strategyRandom() strategyFn {
-	lastPick := 0
+func strategySimpleRandom(option *GroupCommonOption) strategyFn {
 	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
 		length := len(proxies)
 		idx := rand.Intn(length)
 		proxy := proxies[idx]
 		if proxy.Alive() {
-			lastPick = idx
 			return proxy
 		}
 
-		return proxies[lastPick]
+		return proxies[0]
+	}
+}
+
+func totalWeight(proxies []C.Proxy, base int) int {
+	total := base
+
+	for _, p := range proxies {
+		total += p.Weight()
+	}
+
+	return total
+}
+
+func strategyWeightedRandom(option *GroupCommonOption) strategyFn {
+	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
+		sum := 0
+		total := totalWeight(proxies, -1)
+		threshold := rand.Intn(total)
+		for _, pxy := range proxies {
+			sum += pxy.Weight()
+			if pxy.Alive() && sum >= threshold {
+				return pxy
+			}
+		}
+
+		return proxies[0]
 	}
 }
 
@@ -140,6 +202,23 @@ func strategyRoundRobin() strategyFn {
 			proxy := proxies[idx]
 			if proxy.Alive() {
 				return proxy
+			}
+		}
+
+		return proxies[0]
+	}
+}
+
+func strategyWeightedRoundRobin(option *GroupCommonOption) strategyFn {
+	threshold := 0
+	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
+		sum := 0
+		total := totalWeight(proxies, -1)
+		threshold = (threshold + 1) % total
+		for _, pxy := range proxies {
+			sum += pxy.Weight()
+			if threshold <= sum && pxy.Alive() {
+				return pxy
 			}
 		}
 
@@ -230,9 +309,17 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 	case "consistent-hashing":
 		strategyFn = strategyConsistentHashing()
 	case "round-robin":
-		strategyFn = strategyRoundRobin()
+		if option.RespectWeight {
+			strategyFn = strategyWeightedRoundRobin(option)
+		} else {
+			strategyFn = strategyRoundRobin()
+		}
 	case "random":
-		strategyFn = strategyRandom()
+		if option.RespectWeight {
+			strategyFn = strategyWeightedRandom(option)
+		} else {
+			strategyFn = strategySimpleRandom(option)
+		}
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions()
 	default:
@@ -247,6 +334,7 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 				RoutingMark: option.RoutingMark,
 			},
 			option.Filter,
+			option.WeightFilter,
 			providers,
 		}),
 		strategyFn: strategyFn,

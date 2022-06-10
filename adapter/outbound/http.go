@@ -75,6 +75,13 @@ func (h *Http) DialContext(ctx context.Context, metadata *C.Metadata, opts ...di
 	return NewConn(c, h), nil
 }
 
+func (h *Http) Weight() int {
+	if h.option.Weight < 1 {
+		return 1
+	}
+	return h.option.Weight
+}
+
 func (h *Http) shakeHand(metadata *C.Metadata, rw io.ReadWriter) error {
 	addr := metadata.RemoteAddress()
 	req := &http.Request{

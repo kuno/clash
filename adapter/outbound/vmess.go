@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	tlsC "github.com/Dreamacro/clash/component/tls"
-	vmess "github.com/sagernet/sing-vmess"
 	"net"
 	"net/http"
 	"strconv"
@@ -18,6 +16,8 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 	"github.com/Dreamacro/clash/transport/gun"
 	clashVMess "github.com/Dreamacro/clash/transport/vmess"
+	tlsC "github.com/Dreamacro/clash/component/tls"
+	vmess "github.com/sagernet/sing-vmess"
 	"github.com/sagernet/sing-vmess/packetaddr"
 	M "github.com/sagernet/sing/common/metadata"
 )
@@ -75,6 +75,13 @@ type WSOptions struct {
 	Headers             map[string]string `proxy:"headers,omitempty"`
 	MaxEarlyData        int               `proxy:"max-early-data,omitempty"`
 	EarlyDataHeaderName string            `proxy:"early-data-header-name,omitempty"`
+}
+
+func (v *Vmess) Weight() int {
+	if v.option.Weight == 0 {
+		return 1
+	}
+	return v.option.Weight
 }
 
 // StreamConn implements C.ProxyAdapter

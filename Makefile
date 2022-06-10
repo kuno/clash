@@ -12,7 +12,7 @@ VERSION=$(shell git rev-parse --short HEAD)
 endif
 
 BUILDTIME=$(shell date -u)
-GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "github.com/Dreamacro/clash/constant.Version=$(VERSION)" \
+GOBUILD=CGO_ENABLED=0 go build -trimpath -ldflags '-X "github.com/Dreamacro/clash/constant.Version=Meta $(VERSION)" \
 		-X "github.com/Dreamacro/clash/constant.BuildTime=$(BUILDTIME)" \
 		-w -s -buildid='
 
