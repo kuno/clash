@@ -89,6 +89,10 @@ func (s *Selector) selectedProxy(touch bool) C.Proxy {
 	return proxies[0]
 }
 
+func (s *Selector) Weight() int {
+	return 1
+}
+
 func NewSelector(option *GroupCommonOption, providers []provider.ProxyProvider) *Selector {
 	return &Selector{
 		GroupBase: NewGroupBase(GroupBaseOption{
@@ -99,6 +103,7 @@ func NewSelector(option *GroupCommonOption, providers []provider.ProxyProvider) 
 				RoutingMark: option.RoutingMark,
 			},
 			option.Filter,
+			option.WeightFilter,
 			providers,
 		}),
 		selected:   "COMPATIBLE",

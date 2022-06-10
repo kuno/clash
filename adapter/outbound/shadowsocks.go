@@ -14,7 +14,7 @@ import (
 	obfs "github.com/Dreamacro/clash/transport/simple-obfs"
 	"github.com/Dreamacro/clash/transport/socks5"
 	v2rayObfs "github.com/Dreamacro/clash/transport/v2ray-plugin"
-	"github.com/sagernet/sing-shadowsocks"
+	shadowsocks "github.com/sagernet/sing-shadowsocks"
 	"github.com/sagernet/sing-shadowsocks/shadowimpl"
 	"github.com/sagernet/sing/common/buf"
 	"github.com/sagernet/sing/common/bufio"
@@ -64,6 +64,13 @@ type v2rayObfsOption struct {
 	Headers        map[string]string `obfs:"headers,omitempty"`
 	SkipCertVerify bool              `obfs:"skip-cert-verify,omitempty"`
 	Mux            bool              `obfs:"mux,omitempty"`
+}
+
+func (ss *ShadowSocks) Weight() int {
+	if ss.option.Weight == 0 {
+		return 1
+	}
+	return ss.option.Weight
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -195,7 +202,8 @@ func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
 		},
 		method: method,
 
-		option:      &option,
+		option: &option,
+
 		obfsMode:    obfsMode,
 		v2rayOption: v2rayOption,
 		obfsOption:  obfsOption,

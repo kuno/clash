@@ -24,6 +24,10 @@ func (r *Reject) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 	return newPacketConn(&nopPacketConn{}, r), nil
 }
 
+func (r *Reject) Weight() int {
+	return 1
+}
+
 func NewReject() *Reject {
 	return &Reject{
 		Base: &Base{

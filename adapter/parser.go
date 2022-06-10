@@ -8,7 +8,7 @@ import (
 	C "github.com/Dreamacro/clash/constant"
 )
 
-func ParseProxy(mapping map[string]any) (C.Proxy, error) {
+func ParseProxy(mapping map[string]any, providerWeight int) (C.Proxy, error) {
 	decoder := structure.NewDecoder(structure.Option{TagName: "proxy", WeaklyTypedInput: true})
 	proxyType, existType := mapping["type"].(string)
 	if !existType {
@@ -26,12 +26,18 @@ func ParseProxy(mapping map[string]any) (C.Proxy, error) {
 		if err != nil {
 			break
 		}
+		if ssOption.Weight == 0 {
+			ssOption.Weight = providerWeight 
+		}
 		proxy, err = outbound.NewShadowSocks(*ssOption)
 	case "ssr":
 		ssrOption := &outbound.ShadowSocksROption{}
 		err = decoder.Decode(mapping, ssrOption)
 		if err != nil {
 			break
+		}
+		if ssrOption.Weight == 0 {
+			ssrOption.Weight = providerWeight 
 		}
 		proxy, err = outbound.NewShadowSocksR(*ssrOption)
 	case "socks5":
@@ -59,12 +65,18 @@ func ParseProxy(mapping map[string]any) (C.Proxy, error) {
 		if err != nil {
 			break
 		}
+		if vmessOption.Weight == 0 {
+			vmessOption.Weight = providerWeight 
+		}
 		proxy, err = outbound.NewVmess(*vmessOption)
 	case "vless":
 		vlessOption := &outbound.VlessOption{}
 		err = decoder.Decode(mapping, vlessOption)
 		if err != nil {
 			break
+		}
+		if vlessOption.Weight == 0 {
+			vlessOption.Weight = providerWeight 
 		}
 		proxy, err = outbound.NewVless(*vlessOption)
 	case "snell":
@@ -79,6 +91,9 @@ func ParseProxy(mapping map[string]any) (C.Proxy, error) {
 		err = decoder.Decode(mapping, trojanOption)
 		if err != nil {
 			break
+		}
+		if trojanOption.Weight == 0 {
+			trojanOption.Weight = providerWeight
 		}
 		proxy, err = outbound.NewTrojan(*trojanOption)
 	case "hysteria":

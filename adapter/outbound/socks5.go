@@ -17,6 +17,7 @@ import (
 
 type Socks5 struct {
 	*Base
+	option         *Socks5Option
 	user           string
 	pass           string
 	tls            bool
@@ -77,6 +78,13 @@ func (ss *Socks5) DialContext(ctx context.Context, metadata *C.Metadata, opts ..
 	}
 
 	return NewConn(c, ss), nil
+}
+
+func (ss *Socks5) Weight() int {
+	if ss.option.Weight == 0 {
+		return 1
+	}
+	return ss.option.Weight
 }
 
 // ListenPacketContext implements C.ProxyAdapter
@@ -167,6 +175,7 @@ func NewSocks5(option Socks5Option) (*Socks5, error) {
 			iface: option.Interface,
 			rmark: option.RoutingMark,
 		},
+		option:         &option,
 		user:           option.UserName,
 		pass:           option.Password,
 		tls:            option.TLS,
