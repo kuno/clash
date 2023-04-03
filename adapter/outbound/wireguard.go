@@ -80,6 +80,10 @@ func (d wgNetDialer) DialContext(ctx context.Context, network, address string) (
 	return d.tunDevice.DialContext(ctx, network, M.ParseSocksaddr(address).Unwrap())
 }
 
+func (w *WireGuard) Weight() int {
+	return 1
+}
+
 func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 	outbound := &WireGuard{
 		Base: &Base{

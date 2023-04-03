@@ -112,6 +112,10 @@ func (u *URLTest) fast(touch bool) C.Proxy {
 	return elm
 }
 
+func (u *URLTest) Weight() int {
+	return 1
+}
+
 // SupportUDP implements C.ProxyAdapter
 func (u *URLTest) SupportUDP() bool {
 	if u.disableUDP {
@@ -160,6 +164,7 @@ func NewURLTest(option *GroupCommonOption, providers []provider.ProxyProvider, o
 			option.Filter,
 			option.ExcludeFilter,
 			option.ExcludeType,
+			option.WeightFilter,
 			providers,
 		}),
 		fastSingle: singledo.NewSingle[C.Proxy](time.Second * 10),

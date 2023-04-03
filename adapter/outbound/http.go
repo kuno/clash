@@ -89,6 +89,13 @@ func (h *Http) SupportWithDialer() bool {
 	return true
 }
 
+func (h *Http) Weight() int {
+	if h.option.Weight < 1 {
+		return 1
+	}
+	return h.option.Weight
+}
+
 func (h *Http) shakeHand(metadata *C.Metadata, rw io.ReadWriter) error {
 	addr := metadata.RemoteAddress()
 	req := &http.Request{

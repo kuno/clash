@@ -49,6 +49,10 @@ type Hysteria struct {
 	client *core.Client
 }
 
+func (h *Hysteria) Weight() int {
+	return 1;
+}
+
 func (h *Hysteria) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
 	hdc := hyDialerWithContext{
 		ctx: context.Background(),

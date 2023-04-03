@@ -17,6 +17,7 @@ import (
 
 type ShadowSocksR struct {
 	*Base
+	option   *ShadowSocksROption
 	cipher   core.Cipher
 	obfs     obfs.Obfs
 	protocol protocol.Protocol
@@ -34,6 +35,13 @@ type ShadowSocksROption struct {
 	Protocol      string `proxy:"protocol"`
 	ProtocolParam string `proxy:"protocol-param,omitempty"`
 	UDP           bool   `proxy:"udp,omitempty"`
+}
+
+func (ssr *ShadowSocksR) Weight() int {
+	if ssr.option.Weight == 0 {
+		return 1
+	}
+	return ssr.option.Weight
 }
 
 // StreamConn implements C.ProxyAdapter
@@ -168,6 +176,7 @@ func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 			rmark:  option.RoutingMark,
 			prefer: C.NewDNSPrefer(option.IPVersion),
 		},
+		option:   &option,
 		cipher:   coreCiph,
 		obfs:     obfs,
 		protocol: protocol,

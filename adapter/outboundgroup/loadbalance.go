@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -27,6 +28,40 @@ type LoadBalance struct {
 	*GroupBase
 	disableUDP bool
 	strategyFn strategyFn
+}
+
+type DescendingWeight []C.Proxy
+
+func (dw DescendingWeight) Len() int      { return len(dw) }
+func (dw DescendingWeight) Swap(i, j int) { dw[i], dw[j] = dw[j], dw[i] }
+func (dw DescendingWeight) Less(i, j int) bool {
+	return dw[i].Weight() > dw[j].Weight()
+}
+
+type ProxyRandomStatistic struct {
+	data   map[string]int
+	header string
+}
+
+func (prs *ProxyRandomStatistic) Total() int {
+	total := 0
+	for _, count := range prs.data {
+		total += count
+	}
+
+	return total
+}
+
+func (prs *ProxyRandomStatistic) Selected(name string) int {
+	return prs.data[name]
+}
+
+func (prs *ProxyRandomStatistic) Record(name string) {
+	if count, found := prs.data[name]; found {
+		prs.data[name] = count + 1
+		return
+	}
+	prs.data[name] = 1
 }
 
 var errStrategy = errors.New("unsupported strategy")
@@ -83,6 +118,10 @@ func jumpHash(key uint64, buckets int32) int32 {
 	return int32(b)
 }
 
+func (lb *LoadBalance) Weight() int {
+	return 1
+}
+
 // DialContext implements C.ProxyAdapter
 func (lb *LoadBalance) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (c C.Conn, err error) {
 	proxy := lb.Unwrap(metadata, true)
@@ -127,6 +166,45 @@ func (lb *LoadBalance) SupportUDP() bool {
 	return !lb.disableUDP
 }
 
+func strategySimpleRandom(option *GroupCommonOption) strategyFn {
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+		length := len(proxies)
+		idx := rand.Intn(length)
+		proxy := proxies[idx]
+		if proxy.Alive() {
+			return proxy
+		}
+
+		return proxies[0]
+	}
+}
+
+func totalWeight(proxies []C.Proxy, base int) int {
+	total := base
+
+	for _, p := range proxies {
+		total += p.Weight()
+	}
+
+	return total
+}
+
+func strategyWeightedRandom(option *GroupCommonOption) strategyFn {
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+		sum := 0
+		total := totalWeight(proxies, -1)
+		threshold := rand.Intn(total)
+		for _, pxy := range proxies {
+			sum += pxy.Weight()
+			if pxy.Alive() && sum >= threshold {
+				return pxy
+			}
+		}
+
+		return proxies[0]
+	}
+}
+
 func strategyRoundRobin() strategyFn {
 	idx := 0
 	idxMutex := sync.Mutex{}
@@ -149,6 +227,23 @@ func strategyRoundRobin() strategyFn {
 			if proxy.Alive() {
 				i++
 				return proxy
+			}
+		}
+
+		return proxies[0]
+	}
+}
+
+func strategyWeightedRoundRobin(option *GroupCommonOption) strategyFn {
+	threshold := 0
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+		sum := 0
+		total := totalWeight(proxies, -1)
+		threshold = (threshold + 1) % total
+		for _, pxy := range proxies {
+			sum += pxy.Weight()
+			if threshold <= sum && pxy.Alive() {
+				return pxy
 			}
 		}
 
@@ -183,7 +278,7 @@ func strategyConsistentHashing() strategyFn {
 func strategyStickySessions() strategyFn {
 	ttl := time.Minute * 10
 	maxRetry := 5
-	lruCache := cache.New[uint64, int](
+	lruCache := cache.New(
 		cache.WithAge[uint64, int](int64(ttl.Seconds())),
 		cache.WithSize[uint64, int](1000))
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
@@ -239,7 +334,17 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 	case "consistent-hashing":
 		strategyFn = strategyConsistentHashing()
 	case "round-robin":
-		strategyFn = strategyRoundRobin()
+		if option.RespectWeight {
+			strategyFn = strategyWeightedRoundRobin(option)
+		} else {
+			strategyFn = strategyRoundRobin()
+		}
+	case "random":
+		if option.RespectWeight {
+			strategyFn = strategyWeightedRandom(option)
+		} else {
+			strategyFn = strategySimpleRandom(option)
+		}
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions()
 	default:
@@ -256,6 +361,7 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 			option.Filter,
 			option.ExcludeFilter,
 			option.ExcludeType,
+			option.WeightFilter,
 			providers,
 		}),
 		strategyFn: strategyFn,

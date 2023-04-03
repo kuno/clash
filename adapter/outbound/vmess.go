@@ -88,6 +88,13 @@ type WSOptions struct {
 	EarlyDataHeaderName string            `proxy:"early-data-header-name,omitempty"`
 }
 
+func (v *Vmess) Weight() int {
+	if v.option.Weight == 0 {
+		return 1
+	}
+	return v.option.Weight
+}
+
 // StreamConn implements C.ProxyAdapter
 func (v *Vmess) StreamConn(c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	var err error

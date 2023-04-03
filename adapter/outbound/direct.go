@@ -34,6 +34,10 @@ func (d *Direct) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 	return newPacketConn(&directPacketConn{pc}, d), nil
 }
 
+func (d *Direct) Weight() int {
+	return 1
+}
+
 type directPacketConn struct {
 	net.PacketConn
 }

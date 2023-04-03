@@ -105,6 +105,10 @@ func (t *Tuic) dialWithDialer(ctx context.Context, dialer C.Dialer) (pc net.Pack
 	return
 }
 
+func (t *Tuic) Weight() int {
+	return 1
+}
+
 func NewTuic(option TuicOption) (*Tuic, error) {
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	serverName := option.Server
