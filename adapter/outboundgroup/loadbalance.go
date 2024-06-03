@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -170,7 +171,7 @@ func (lb *LoadBalance) IsL3Protocol(metadata *C.Metadata) bool {
 	return lb.Unwrap(metadata, false).IsL3Protocol(metadata)
 }
 
-func strategySimpleRandom(option *GroupCommonOption) strategyFn {
+func strategySimpleRandom(_ *GroupCommonOption) strategyFn {
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		length := len(proxies)
 		idx := rand.Intn(length)
@@ -193,7 +194,7 @@ func totalWeight(proxies []C.Proxy, base int) int {
 	return total
 }
 
-func strategyWeightedRandom(option *GroupCommonOption) strategyFn {
+func strategyWeightedRandom(_ *GroupCommonOption) strategyFn {
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		sum := 0
 		total := totalWeight(proxies, -1)
@@ -201,6 +202,22 @@ func strategyWeightedRandom(option *GroupCommonOption) strategyFn {
 		for _, pxy := range proxies {
 			sum += pxy.Weight()
 			if pxy.Alive() && sum >= threshold {
+				return pxy
+			}
+		}
+
+		return proxies[0]
+	}
+}
+
+func strategyWeightedOrder(_ *GroupCommonOption) strategyFn {
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+		sort.Slice(proxies, func(i, j int) bool {
+			return proxies[i].Weight() > proxies[j].Weight()
+		})
+
+		for _, pxy := range proxies {
+			if pxy.Alive() {
 				return pxy
 			}
 		}
@@ -239,7 +256,7 @@ func strategyRoundRobin(url string) strategyFn {
 	}
 }
 
-func strategyWeightedRoundRobin(option *GroupCommonOption) strategyFn {
+func strategyWeightedRoundRobin(_ *GroupCommonOption) strategyFn {
 	threshold := 0
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		sum := 0
@@ -357,6 +374,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 		}
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions(option.URL)
+	case "weighted-order":
+		strategyFn = strategyWeightedOrder(option)
 	default:
 		return nil, fmt.Errorf("%w: %s", errStrategy, strategy)
 	}
